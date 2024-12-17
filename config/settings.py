@@ -18,8 +18,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "proxy.apps.ProxyConfig",
-    # drf
+    "api.apps.ApiConfig",
     "rest_framework",
     "rest_framework_simplejwt",
 ]
@@ -40,7 +39,7 @@ REST_FRAMEWORK = {
     ),
 }
 
-ROOT_URLCONF = "proxy_service.urls"
+ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
     {
@@ -58,7 +57,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "proxy_service.wsgi.application"
+WSGI_APPLICATION = "config.wsgi.application"
 
 USE_SQLITE = os.getenv("USE_SQLITE", "True").lower() in ["true", "1", "yes"]
 

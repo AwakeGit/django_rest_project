@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  django_rest:
+    build:
+      context: .
+    container_name: django_rest
+    command: >
+      sh -c "python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/app
+    ports:
+      - "8002:8000"
+    env_file:
+      - .env
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
