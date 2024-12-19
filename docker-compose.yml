@@ -4,7 +4,7 @@ services:
   django_rest:
     build:
       context: .
-    container_name: django_rest
+    container_name: django-rest
     command: >
       sh -c "python manage.py runserver 0.0.0.0:8000"
     volumes:
