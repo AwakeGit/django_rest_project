@@ -10,11 +10,49 @@ import logging
 logger = logging.getLogger("api")
 
 
-class CreateTokenView(APIView):
-    """
-    Создает токен для пользователя. Если пользователь не существует, он будет создан.
-    """
-
+# class CreateTokenView(APIView):
+#     """
+#     Создает токен для пользователя. Если пользователь не существует, он будет создан.
+#     """
+#
+#     permission_classes = [AllowAny]
+#
+#     def post(self, request):
+#         username = request.data.get("username")
+#         password = request.data.get("password")
+#
+#         if not username or not password:
+#             logger.warning("Не указаны имя пользователя или пароль.")
+#             return Response(
+#                 {"detail": "Username and password are required."}, status=400
+#             )
+#
+#         try:
+#             user = User.objects.filter(username=username).first()
+#
+#             if not user:
+#                 with transaction.atomic():
+#                     hashed_password = make_password(password)
+#                     user = User.objects.create(
+#                         username=username, password=hashed_password
+#                     )
+#                 logger.info(f"Создан новый пользователь: {username}")
+#
+#             elif not check_password(password, user.password):
+#                 return Response({"detail": "Invalid credentials."}, status=401)
+#
+#             refresh = RefreshToken.for_user(user)
+#             return Response(
+#                 {
+#                     "refresh": str(refresh),
+#                     "access": str(refresh.access_token),
+#                 }
+#             )
+#
+#         except Exception as e:
+#             logger.error(f"Ошибка при создании токена: {e}")
+#             return Response({"detail": "Internal server error."}, status=500)
+class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -22,33 +60,25 @@ class CreateTokenView(APIView):
         password = request.data.get("password")
 
         if not username or not password:
-            logger.warning("Не указаны имя пользователя или пароль.")
             return Response(
                 {"detail": "Username and password are required."}, status=400
             )
 
-        try:
-            user = User.objects.filter(username=username).first()
+        user = User.objects.filter(username=username).first()
+        if user:
+            return Response({"detail": "User already exists."}, status=400)
 
-            if not user:
-                with transaction.atomic():
-                    hashed_password = make_password(password)
-                    user = User.objects.create(
-                        username=username, password=hashed_password
-                    )
-                logger.info(f"Создан новый пользователь: {username}")
-
-            elif not check_password(password, user.password):
-                return Response({"detail": "Invalid credentials."}, status=401)
-
-            refresh = RefreshToken.for_user(user)
-            return Response(
-                {
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
-                }
+        # Создаём нового пользователя
+        with transaction.atomic():
+            user = User.objects.create(
+                username=username, password=make_password(password)
             )
 
-        except Exception as e:
-            logger.error(f"Ошибка при создании токена: {e}")
-            return Response({"detail": "Internal server error."}, status=500)
+        # Выдаём токен
+        refresh = RefreshToken.for_user(user)
+        return Response(
+            {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+            }
+        )
