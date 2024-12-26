@@ -1,4 +1,4 @@
-# Используем официальный образ Python
+# Dockerfile
 FROM python:3.12-slim
 
 # Устанавливаем системные зависимости
@@ -13,15 +13,18 @@ ENV POETRY_VERSION=1.5.1
 RUN curl -sSL https://install.python-poetry.org | python3 - && \
     ln -s /root/.local/bin/poetry /usr/local/bin/poetry
 
-# Создаем рабочую директорию
 WORKDIR /app
 
-# Копируем файлы Poetry и устанавливаем зависимости
 COPY pyproject.toml poetry.lock ./
 RUN poetry config virtualenvs.create false && \
-    poetry install --no-dev --no-interaction --no-ansi
+    poetry install --no-interaction --no-ansi
 
 # Копируем проект
 COPY . .
-#CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
-CMD ["sh", "-c", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
+
+# Собираем статику и миграции.
+RUN python manage.py migrate
+# RUN python manage.py collectstatic --noinput
+
+# Запуск через uvicorn
+CMD ["uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--port", "8000"]

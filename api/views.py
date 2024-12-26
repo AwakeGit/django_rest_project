@@ -1,25 +1,31 @@
-# api/views.py
-import json
 import logging
 import os
 
-import requests
+import httpx
+from django.contrib.auth.models import User
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status, generics
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth.models import User
+from drfasyncview import AsyncAPIView
+from api.decorators import token_required
 from api.serializers import UserRegistrationSerializer
+from django.core.cache import cache
+
+from config import settings
+
+logger = logging.getLogger("users")
 
 FASTAPI_URL = os.getenv("FASTAPI_URL", "http://127.0.0.1:8000")
-
-logger = logging.getLogger("api")
 
 
 class RegisterView(generics.CreateAPIView):
     """
-    Представление для регистрации нового пользователя.
+    Оставляем регистрацию как есть: синхронная вьюха.
     """
 
     permission_classes = [AllowAny]
@@ -27,7 +33,7 @@ class RegisterView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
-        # Получаем пользователя по username из ответа сериализатора
+        # Получаем пользователя по username
         user = User.objects.get(username=response.data["username"])
 
         # Генерируем токены
@@ -41,30 +47,47 @@ class RegisterView(generics.CreateAPIView):
         return Response({**response.data, **token_data}, status=status.HTTP_201_CREATED)
 
 
-class UploadDocumentView(APIView):
+class CacheTestView(APIView):
+    def get(self, request, key):
+        """
+        Получение данных из кэша по ключу.
+        """
+        data = cache.get(key)
+        if data is None:
+            return Response({"message": "Ключ не найден в кэше"}, status=404)
+        return Response({"key": key, "value": data}, status=200)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class UploadDocumentView(AsyncAPIView):
     """
-    Представление для загрузки документа.
+    Асинхронное представление для загрузки документа в FastAPI.
+    Используем drfasyncview.AsyncAPIView вместо стандартного APIView.
     """
 
-    permission_classes = [IsAuthenticated]  # Проверка JWT токена
-
-    def post(self, request):
-        logger.info("Получен запрос на загрузку файла в прокси.")
+    @token_required
+    async def post(self, request, *args, **kwargs):
+        logger.info("Получен запрос на загрузку файла (async).")
         file_obj = request.FILES.get("file")
         if not file_obj:
-            logger.error("Файл не передан.")
             return Response(
                 {"message": "No file uploaded."}, status=status.HTTP_400_BAD_REQUEST
             )
 
         logger.info(f"Принят файл: {file_obj.name}, размер: {file_obj.size}")
-
-        upload_url = f"{FASTAPI_URL}/documents"
+        upload_url = f"{FASTAPI_URL}documents"
         logger.info(f"Отправка файла в FastAPI: {upload_url}")
 
-        response = requests.post(
-            upload_url, files={"file": (file_obj.name, file_obj.read())}
-        )
+        content = file_obj.read()
+        file_obj.seek(0)
+
+        async with httpx.AsyncClient() as client:
+            logger.info("TEST")
+            response = await client.post(
+                upload_url,
+                files={"file": (file_obj.name, content)},
+            )
+
         logger.info(
             f"Ответ от FastAPI: статус={response.status_code}, тело={response.text}"
         )
@@ -77,7 +100,6 @@ class UploadDocumentView(APIView):
                     {"message": "No id returned from FastAPI."},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
-
             return Response(
                 {"id": doc_id, "message": "File uploaded successfully."},
                 status=status.HTTP_201_CREATED,
@@ -90,23 +112,25 @@ class UploadDocumentView(APIView):
             )
 
 
-class AnalyzeDocumentView(APIView):
+@method_decorator(csrf_exempt, name="dispatch")
+class AnalyzeDocumentView(AsyncAPIView):
     """
-    Анализ документа:
+    Асинхронное представление для анализа документа.
     """
 
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, doc_id):
+    @token_required
+    async def post(self, request, doc_id, *args, **kwargs):
         if not doc_id:
             return Response(
                 {"message": "doc_id is required."}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        analyze_url = f"{FASTAPI_URL}/documents/{doc_id}/analyze"
+        analyze_url = f"{FASTAPI_URL}documents/{doc_id}/analyze"
         logger.info(f"Отправка запроса на анализ {doc_id} в FastAPI: {analyze_url}")
 
-        response = requests.post(analyze_url)
+        async with httpx.AsyncClient() as client:
+            response = await client.post(analyze_url)
+
         logger.info(
             f"Ответ от FastAPI на анализ: статус={response.status_code}, тело={response.text}"
         )
@@ -124,16 +148,20 @@ class AnalyzeDocumentView(APIView):
             )
 
 
-class GetTextView(APIView):
-    """Получение текста документа:"""
+@method_decorator(csrf_exempt, name="dispatch")
+class GetTextView(AsyncAPIView):
+    """
+    Асинхронное представление для получения текста документа.
+    """
 
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, doc_id):
-        text_url = f"{FASTAPI_URL}/documents/{doc_id}/text/"
+    @token_required
+    async def get(self, request, doc_id, *args, **kwargs):
+        text_url = f"{FASTAPI_URL}documents/{doc_id}/text"
         logger.info(f"Запрос на получение текста {doc_id} в FastAPI: {text_url}")
 
-        response = requests.get(text_url)
+        async with httpx.AsyncClient() as client:
+            response = await client.get(text_url)
+
         logger.info(
             f"Ответ от FastAPI: статус={response.status_code}, тело={response.text}"
         )
@@ -153,28 +181,32 @@ class GetTextView(APIView):
             )
 
 
-class DeleteDocumentView(APIView):
-    permission_classes = [IsAuthenticated]
+@method_decorator(csrf_exempt, name="dispatch")
+class DeleteDocumentView(AsyncAPIView):
+    """
+    Асинхронное представление для удаления документа.
+    """
 
-    def delete(self, request, doc_id):
+    @token_required
+    async def delete(self, request, doc_id, *args, **kwargs):
         if not doc_id:
             return Response(
-                {"message": "doc_id is required."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"message": "doc_id is required."}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        delete_url = f"{FASTAPI_URL}/documents/{doc_id}"
+        delete_url = f"{FASTAPI_URL}documents/{doc_id}"
         logger.info(f"Запрос на удаление doc_id={doc_id} в FastAPI: {delete_url}")
 
-        response = requests.delete(delete_url)
+        async with httpx.AsyncClient() as client:
+            response = await client.delete(delete_url)
+
         logger.info(
             f"Ответ от FastAPI на удаление: статус={response.status_code}, тело={response.text}"
         )
 
         if response.status_code in [200, 204]:
             return Response(
-                {"message": "Документ успешно удален."},
-                status=status.HTTP_200_OK,
+                {"message": "Документ успешно удален."}, status=status.HTTP_200_OK
             )
         else:
             error_message = response.json().get("message", "Unknown error.")

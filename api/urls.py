@@ -11,6 +11,7 @@ from .views import (
     AnalyzeDocumentView,
     GetTextView,
     DeleteDocumentView,
+    CacheTestView,
 )
 
 urlpatterns = [
