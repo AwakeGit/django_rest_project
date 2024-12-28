@@ -3,20 +3,29 @@ repos:
     rev: 24.10.0
     hooks:
       - id: black
-        args: [ "--line-length=88" ]
-        entry: black --config ./.black --exclude=".venv\*"
+        args:
+          - --config=.black
+        language_version: python3.12
 
   - repo: https://github.com/PyCQA/flake8
     rev: '7.1.1'
     hooks:
       - id: flake8
-        additional_dependencies: [ "flake8-pyproject" ]
-        args: [ "--exclude=.git,__pycache__,migrations,node_modules,.venv,*/migrations/*,--max-line-length=88", "--select=E,F,W,C90" ]
+        additional_dependencies:
+          - flake8-annotations
+          - flake8-quotes
+          - flake8-docstrings
+          - flake8-picky-parentheses
+        args:
+          - --docstring-convention=google
+          - --config=.flake8
 
   - repo: https://github.com/pre-commit/mirrors-isort
     rev: v5.10.1
     hooks:
       - id: isort
+        args:
+          - lines_after_imports = 2
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

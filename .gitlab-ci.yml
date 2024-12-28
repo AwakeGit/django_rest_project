@@ -1,0 +1,44 @@
+stages:
+  - install
+  - test
+
+variables:
+  PYTHON_VERSION: "3.12"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip/
+    - venv/
+
+before_script:
+  - python --version
+  - pip install --upgrade pip
+  - pip install virtualenv
+  - virtualenv venv
+  - source venv/bin/activate
+  - pip install -r requirements.txt
+
+install:
+  stage: install
+  script:
+    - echo "Установка зависимостей..."
+  artifacts:
+    paths:
+      - venv/
+
+test:
+  stage: test
+  script:
+    - echo "Запуск тестов для Django..."
+    - python manage.py test
+    - echo "Запуск тестов для DRF"
+    - pytest tests/
+  artifacts:
+    when: always
+    paths:
+      - test-reports/
+    reports:
+      junit: test-reports/junit.xml
+  allow_failure: false
+

@@ -26,5 +26,5 @@ COPY . .
 RUN python manage.py migrate
 # RUN python manage.py collectstatic --noinput
 
-# Запуск через uvicorn
-CMD ["uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--port", "8000"]
+# Запуск через
+CMD ["gunicorn", "config.asgi:application", "--host", "0.0.0.0", "--port", "8000"]

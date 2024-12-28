@@ -1,12 +1,27 @@
-version: '3.8'
-
 services:
+  db_django_rest:
+    image: postgres:16
+    container_name: postgres_django_rest
+    environment:
+      POSTGRES_DB: ${DB_NAME_DJANGO}
+      POSTGRES_USER: ${DB_USER_DJANGO}
+      POSTGRES_PASSWORD: ${DB_PASSWORD_DJANGO}
+    volumes:
+      - postgres_data_django:/var/lib/postgresql/data
+    ports:
+      - "5430:5432"
+    networks:
+      - app-network
+
+
   django_rest:
     build:
       context: .
     container_name: django-rest
     command: >
-      sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+
     volumes:
       - .:/app
     ports:
@@ -16,13 +31,17 @@ services:
     networks:
       - app-network
 
-  redis:
-    image: redis:latest
-    container_name: redis
-    ports:
-      - "6379:6379"
-    restart: always
+#  redis:
+#    image: redis:latest
+#    container_name: redis
+#    ports:
+#      - "6379:6379"
+#    restart: always
+
 
 networks:
   app-network:
     external: true
+
+volumes:
+  postgres_data_django:
